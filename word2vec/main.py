@@ -3,7 +3,6 @@ import word2vec as w2v
 import data
 import numpy as np
 import time # Added for tracking speed
-from data import download_text8
 
 
 def train(corpus, vocab_size, unigram_table, epochs=5, window_size=2, k_neg=5, dim=10, patience_limit=5, decay=0.9):
@@ -48,7 +47,7 @@ def train(corpus, vocab_size, unigram_table, epochs=5, window_size=2, k_neg=5, d
                 else:
                     patience_counter += 1
 
-                if patience_counter > patience_limit and epoch > 1:
+                if patience_counter > patience_limit and epoch > 0:
                     model.learning_rate *= decay
                     patience_counter = 0
                     print("Adjusting lr on plateau")
@@ -64,7 +63,7 @@ def train(corpus, vocab_size, unigram_table, epochs=5, window_size=2, k_neg=5, d
 
 
 data.download_text8()
-text = data.load_dataset("text8")
+text = data.load_dataset("word2vec/text8")
 corpus, vocab_size, word2idx, unigram_table = data.prepare_data(text)
 
 print(f"Vocabulary size: {vocab_size}")
