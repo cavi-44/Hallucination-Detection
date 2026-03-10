@@ -1,57 +1,75 @@
+import word2vec
+import word2vec as w2v
+import data
 import numpy as np
-#Based on theory presentent in documents:
-#Paper #1: "Efficient Estimation of Word Representations in Vector Space" - Mikolow, Chen, Corrado, Dean 2013
-#Paper #2: "Distributed Representations of Words and Phrases and their Compositionality" - Mikolow,  Sutskever, Chen, Corrado, Dean 2013
-def sigmoid(x):
-    x = np.clip(x, -500, 500)
-    return 1 / (1 + np.exp(-x))
-class Word2VecSGNS:
-    def __init__(self, vocab_size, embedding_dim, learning_rate=0.025):
-        self.vocab_size = vocab_size
-        self.embedding_dim = embedding_dim
-        self.learning_rate = learning_rate
-
-        #division by emdedding_dim to stabilize training (avoiding death gradients of sigmoid function)
-        self.target_word_embeddings = np.random.uniform(-1, 1, (self.vocab_size, self.embedding_dim)) / embedding_dim
-
-        #the Output (initially all zeros)
-        self.context_word_embeddings = np.zeros((self.vocab_size, self.embedding_dim))
-
-    def train_step(self, target_idx, context_idx, negative_indices):
-        v_target = self.target_word_embeddings[target_idx] #shape: (embedding_dim)
-        v_context = self.context_word_embeddings[context_idx] #shape: (embedding_dim)
-        #pulling multiple negative samples since negative_indices is a vector of size K
-        v_negative = self.context_word_embeddings[negative_indices] #shape: (K, embedding_dim)
-
-        #dot products and sigmoid
-        dot_tc = np.dot(v_target, v_context)
-        dot_tn = np.dot(v_negative, v_target)
-
-        sigmoid_tc = sigmoid(dot_tc)
-        sigmoid_tn = sigmoid(dot_tn)
-
-        #we add a really small value to prevent model from achieving fe. -inf on log(0)
-        eps = 1e-10
-
-        #Calculating Loss
-        #Original formula (Paper #2) maximizes likelihood, but we will minimize loss (essentially the same)
-        #We also add epsilon for stability and use formula: sigmoid(-x) == 1 - sigmoid(x)
-        loss = -np.log(sigmoid_tc + eps) - np.sum(np.log(1 - sigmoid_tn + eps))
+import time # Added for tracking speed
+from data import download_text8
 
 
-        #Computing gradients:
-        #derivatives:
-        der_tc = 1.0 - sigmoid_tc
-        der_tn = sigmoid_tn
+def train(corpus, vocab_size, unigram_table, epochs=5, window_size=2, k_neg=5, dim=10, patience_limit=5, decay=0.9):
+    model = w2v.Word2VecSGNS(vocab_size, embedding_dim=dim)
+    log_interval = 100000 # logging
 
-        grad_context = der_tc * v_target #shape: (embedding) - gradient for positive context embeddings
-        grad_negative = np.outer(der_tn, v_target) #shape: (K, embedding) - gradients (each for K rows) for negative context embeddings
-        grad_target = der_tc * v_context + np.dot(der_tn, v_negative)  #shape: (embedding) - gradient for target word
-                                                                        #sum of errors of respective negative samples
+    best_loss = float('inf')
+    patience_counter = 0 #for adaptive lr
+    for epoch in range(epochs):
+        epoch_loss = 0
+        interval_loss = 0  # accumulator for the specific interval
+        start_time = time.time() #things for logs really
 
-        self.target_word_embeddings[target_idx] -= self.learning_rate * grad_target
-        self.context_word_embeddings[context_idx] -= self.learning_rate * grad_context
-        self.context_word_embeddings[negative_indices] -= self.learning_rate * grad_negative
 
-        return loss
+        for i, target_idx in enumerate(corpus):
+            #dynamic window
+            actual_window = np.random.randint(1, window_size + 1)
+            start = max(0, i - actual_window)
+            end = min(len(corpus), i + actual_window + 1)
 
+            for j in range(start, end):
+                if i == j: continue #word shouldn't predict itself
+                context_idx = corpus[j]
+
+                # Negative sampling from unigram O(1)
+                neg_indices = unigram_table[np.random.randint(0, len(unigram_table), size=k_neg)]
+
+                loss = model.train_step(target_idx, context_idx, neg_indices)
+                epoch_loss += loss
+                interval_loss += loss
+
+            #for logs and reduce lr on plateau
+            if i > 0 and i % log_interval == 0:
+                avg_interval_loss = interval_loss / log_interval
+                percent_done = (i / len(corpus)) * 100
+                elapsed_time = time.time() - start_time
+                words_per_sec = i / elapsed_time
+
+                if avg_interval_loss < best_loss:
+                    best_loss = avg_interval_loss
+                    patience_counter = 0
+                else:
+                    patience_counter += 1
+
+                if patience_counter > patience_limit and epoch > 1:
+                    model.learning_rate *= decay
+                    patience_counter = 0
+                    print("Adjusting lr on plateau")
+
+
+                print(f"Epoch {epoch + 1}/{epochs} | Step: {i}/{len(corpus)} ({percent_done:.1f}%) | "
+                         f"Speed: {words_per_sec:.0f} words/sec | Loss: {avg_interval_loss:.4f}")
+
+                interval_loss = 0 #reset
+        print(f"Epoch {epoch + 1}/{epochs} | Loss: {epoch_loss / len(corpus):.4f}")
+    return model
+
+
+
+data.download_text8()
+text = data.load_dataset("text8")
+corpus, vocab_size, word2idx, unigram_table = data.prepare_data(text)
+
+print(f"Vocabulary size: {vocab_size}")
+print(f"Total words in training corpus (after subsampling): {len(corpus)}")
+
+print("Training:")
+trained_model = train(corpus, vocab_size, unigram_table, epochs=5, window_size=5, k_neg=5, dim=100, patience_limit=5, decay=0.9)
+word2vec.save_model(trained_model, word2idx, "model.txt")
