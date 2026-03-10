@@ -5,7 +5,7 @@ import numpy as np
 import time # Added for tracking speed
 
 
-def train(corpus, vocab_size, unigram_table, epochs=5, window_size=2, k_neg=5, dim=10, patience_limit=5, decay=0.9):
+def train(corpus, vocab_size, unigram_table, epochs=5, window_size=2, k_neg=5, dim=10, patience_limit=5, decay=0.5, non_reducable_epoch_count=0):
     model = w2v.Word2VecSGNS(vocab_size, embedding_dim=dim)
     log_interval = 100000 # logging
 
@@ -47,7 +47,7 @@ def train(corpus, vocab_size, unigram_table, epochs=5, window_size=2, k_neg=5, d
                 else:
                     patience_counter += 1
 
-                if patience_counter > patience_limit and epoch > 0:
+                if patience_counter > patience_limit and non_reducable_epoch_count >= 0:
                     model.learning_rate *= decay
                     patience_counter = 0
                     print("Adjusting lr on plateau")
@@ -70,5 +70,10 @@ print(f"Vocabulary size: {vocab_size}")
 print(f"Total words in training corpus (after subsampling): {len(corpus)}")
 
 print("Training:")
-trained_model = train(corpus, vocab_size, unigram_table, epochs=5, window_size=5, k_neg=5, dim=100, patience_limit=5, decay=0.9)
+trained_model = train(corpus, vocab_size, unigram_table, epochs=1, window_size=8, k_neg=8, dim=150, patience_limit=3, decay=0.5, non_reducable_epoch_count=0)
+word2vec.evaluate(trained_model, word2idx, "king")
+word2vec.evaluate(trained_model, word2idx, "apple")
+word2vec.evaluate(trained_model, word2idx, "bank")
+word2vec.evaluate(trained_model, word2idx, "river")
+word2vec.evaluate(trained_model, word2idx, "crime")
 word2vec.save_model(trained_model, word2idx, "model.txt")

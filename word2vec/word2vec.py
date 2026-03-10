@@ -56,6 +56,38 @@ class Word2VecSGNS:
 
         return loss
 
+
+
+#ELEMENT COPY-PASTED FROM AI - START
+def evaluate(model, word2idx, target_word, top_k=10):
+    # 1. Get the ID of the word we want to test
+    if target_word not in word2idx:
+        print(f"'{target_word}' not found in vocabulary.")
+        return
+
+    idx2word = {i: w for w, i in word2idx.items()}
+    target_id = word2idx[target_word]
+
+    # 2. Extract the vector for our target word
+    # Shape: (dim,)
+    target_vec = model.target_word_embeddings[target_id]
+
+    # 3. Get ALL vectors to compare against
+    # Shape: (vocab_size, dim)
+    all_vectors = model.target_word_embeddings
+
+    # 4. Calculate Cosine Similarity: (A · B) / (||A|| * ||B||)
+    # This is the "Confidence" score we discussed
+    dot_product = np.dot(all_vectors, target_vec)
+    norms = np.linalg.norm(all_vectors, axis=1) * np.linalg.norm(target_vec)
+    similarity = dot_product / (norms + 1e-9)  # Add epsilon to avoid divide by zero
+
+    # 5. Sort by highest similarity and skip the first one (which is the word itself)
+    nearest_indices = np.argsort(similarity)[::-1][1:top_k + 1]
+
+    print(f"\nWords most similar to '{target_word}':")
+    for idx in nearest_indices:
+        print(f" -> {idx2word[idx]}: {similarity[idx]:.4f}")
 def save_model(model, word2idx, file_name="word2vec.txt"):
     print(f"Saving model {file_name}")
 
@@ -74,3 +106,4 @@ def save_model(model, word2idx, file_name="word2vec.txt"):
             f.write(f"{word} {vector_str}\n")
 
     print("Model saved successfully in standard Word2Vec format.")
+#ELEMENT COPY-PASTED FROM AI - END
