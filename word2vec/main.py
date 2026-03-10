@@ -5,7 +5,7 @@ import numpy as np
 import time # Added for tracking speed
 
 
-def train(corpus, vocab_size, unigram_table, epochs=5, window_size=2, k_neg=5, dim=10, patience_limit=5, decay=0.5, non_reducable_epoch_count=0):
+def train(corpus, vocab_size, unigram_table, epochs=5, window_size=2, k_neg=5, dim=10, patience_limit=5, decay=0.5, non_reducable_epoch_count=0, window_inc=0, neg_inc=0):
     model = w2v.Word2VecSGNS(vocab_size, embedding_dim=dim)
     log_interval = 100000 # logging
 
@@ -55,7 +55,8 @@ def train(corpus, vocab_size, unigram_table, epochs=5, window_size=2, k_neg=5, d
 
                 print(f"Epoch {epoch + 1}/{epochs} | Step: {i}/{len(corpus)} ({percent_done:.1f}%) | "
                          f"Speed: {words_per_sec:.0f} words/sec | Loss: {avg_interval_loss:.4f}")
-
+                k_neg += neg_inc
+                window_size += window_inc
                 interval_loss = 0 #reset
         print(f"Epoch {epoch + 1}/{epochs} | Loss: {epoch_loss / len(corpus):.4f}")
     return model
@@ -70,7 +71,7 @@ print(f"Vocabulary size: {vocab_size}")
 print(f"Total words in training corpus (after subsampling): {len(corpus)}")
 
 print("Training:")
-trained_model = train(corpus, vocab_size, unigram_table, epochs=1, window_size=8, k_neg=8, dim=150, patience_limit=3, decay=0.5, non_reducable_epoch_count=0)
+trained_model = train(corpus, vocab_size, unigram_table, epochs=3, window_size=4, k_neg=4, dim=100, patience_limit=3, decay=0.5, non_reducable_epoch_count=0, window_inc=2, neg_inc=2)
 word2vec.evaluate(trained_model, word2idx, "king")
 word2vec.evaluate(trained_model, word2idx, "apple")
 word2vec.evaluate(trained_model, word2idx, "bank")
