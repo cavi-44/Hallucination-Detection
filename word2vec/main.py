@@ -63,7 +63,7 @@ def train(corpus, vocab_size, unigram_table, epochs=5, window_size=2, k_neg=5, d
 
 
 data.download_text8()
-text = data.load_dataset("word2vec/text8")
+text = data.load_dataset("text8") #you might want to change path if it doesn't work
 corpus, vocab_size, word2idx, unigram_table = data.prepare_data(text)
 
 print(f"Vocabulary size: {vocab_size}")
